@@ -1,10 +1,7 @@
-![Github banner](./.github/banner.gif)
+# `sc-cap`
 
-[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://cap.link/discord)
-[![Twitter](https://img.shields.io/badge/twitter-blue?style=for-the-badge&logo=twitter&logoColor=white&labelColor=%231DA1F2&color=%231DA1F2)](https://www.x.com/cap)
-![GitHub Repo stars](https://img.shields.io/github/stars/capsoftware/scap?style=for-the-badge&logo=github&label=Github%20Stars&labelColor=black)
-![docs.rs](https://img.shields.io/docsrs/scap?style=for-the-badge&logo=rust&logoColor=white&labelColor=black)
-![Crates.io MSRV](https://img.shields.io/crates/msrv/scap?style=for-the-badge&logo=rust&logoColor=white&labelColor=black)
+![docs.rs](https://img.shields.io/docsrs/sc-cap?style=for-the-badge&logo=rust&logoColor=white&labelColor=black)
+![Crates.io MSRV](https://img.shields.io/crates/msrv/sc-cap?style=for-the-badge&logo=rust&logoColor=white&labelColor=black)
 
 A Rust library for high-quality screen capture that leverages native OS APIs for optimal performance!
 
@@ -35,30 +32,30 @@ If you want to contribute code, here's a quick primer:
 ## Usage
 
 ```rust
-use scap::{
+use sc_cap::{
     capturer::{Point, Area, Size, Capturer, Options},
     frame::Frame,
 };
 
 fn main() {
     // Check if the platform is supported
-    if !scap::is_supported() {
+    if !sc_cap::is_supported() {
         println!("❌ Platform not supported");
         return;
     }
 
     // Check if we have permission to capture screen
     // If we don't, request it.
-    if !scap::has_permission() {
+    if !sc_cap::has_permission() {
         println!("❌ Permission not granted. Requesting permission...");
-        if !scap::request_permission() {
+        if !sc_cap::request_permission() {
             println!("❌ Permission denied");
             return;
         }
     }
 
     // Get recording targets
-    let targets = scap::get_all_targets();
+    let targets = sc_cap::get_all_targets();
     println!("Targets: {:?}", targets);
 
     // All your displays and windows are targets
@@ -71,8 +68,8 @@ fn main() {
         show_cursor: true,
         show_highlight: true,
         excluded_targets: None,
-        output_type: scap::frame::FrameType::BGRAFrame,
-        output_resolution: scap::capturer::Resolution::_720p,
+        output_type: sc_cap::frame::FrameType::BGRAFrame,
+        output_resolution: sc_cap::capturer::Resolution::_720p,
         crop_area: Some(Area {
             origin: Point { x: 0.0, y: 0.0 },
             size: Size {

@@ -1,5 +1,5 @@
 use std::{
-    sync::{atomic::AtomicBool, Arc, Mutex},
+    sync::{Arc, Mutex, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -231,7 +231,7 @@ impl<'a> ScreenCastPortal<'a> {
             Duration::from_secs(4),
         );
 
-        let token = format!("scap_{}", rand::random::<u16>());
+        let token = format!("sc-cap_{}", rand::random::<u16>());
 
         Self {
             proxy,
@@ -333,7 +333,7 @@ impl<'a> ScreenCastPortal<'a> {
                         None => {
                             return Err(LinCapError::new(String::from(
                                 "Invalid session_handle received",
-                            )))
+                            )));
                         }
                     });
 
@@ -390,7 +390,7 @@ impl<'a> ScreenCastPortal<'a> {
                     None => {
                         return Err(LinCapError::new(String::from(
                             "Failed to extract stream properties",
-                        )))
+                        )));
                     }
                 },
                 None => return Err(LinCapError::new(String::from("Did not get any streams"))),

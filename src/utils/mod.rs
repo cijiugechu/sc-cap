@@ -33,7 +33,7 @@ pub fn request_permission() -> bool {
     return true;
 }
 
-/// Checks if scap is supported on the current system
+/// Checks if sc-cap is supported on the current system
 pub fn is_supported() -> bool {
     #[cfg(target_os = "macos")]
     return mac::is_supported();

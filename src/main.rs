@@ -1,7 +1,7 @@
 // This program is just a testing application
 // Refer to `lib.rs` for the library source code
 
-use scap::{
+use sc_cap::{
     capturer::{Area, Capturer, Options, Point, Size},
     frame::{Frame, VideoFrame},
 };
@@ -9,23 +9,23 @@ use std::process;
 
 fn main() {
     // Check if the platform is supported
-    if !scap::is_supported() {
+    if !sc_cap::is_supported() {
         println!("❌ Platform not supported");
         return;
     }
 
     // Check if we have permission to capture screen
     // If we don't, request it.
-    if !scap::has_permission() {
+    if !sc_cap::has_permission() {
         println!("❌ Permission not granted. Requesting permission...");
-        if !scap::request_permission() {
+        if !sc_cap::request_permission() {
             println!("❌ Permission denied");
             return;
         }
     }
 
     // // Get recording targets
-    // let targets = scap::get_all_targets();
+    // let targets = sc_cap::get_all_targets();
 
     // Create Options
     let options = Options {
@@ -33,8 +33,8 @@ fn main() {
         show_cursor: true,
         show_highlight: false,
         excluded_targets: None,
-        output_type: scap::frame::FrameType::BGRAFrame,
-        output_resolution: scap::capturer::Resolution::_720p,
+        output_type: sc_cap::frame::FrameType::BGRAFrame,
+        output_resolution: sc_cap::capturer::Resolution::_720p,
         crop_area: Some(Area {
             origin: Point { x: 0.0, y: 0.0 },
             size: Size {
