@@ -5,7 +5,7 @@ use std::{error::Error, sync::mpsc};
 use engine::ChannelItem;
 
 use crate::{
-    frame::{Frame, FrameType, VideoFrame},
+    frame::{Frame, FrameType},
     has_permission, is_supported,
     targets::Target,
 };
@@ -165,7 +165,7 @@ impl Capturer {
         self.engine.get_output_frame_size()
     }
 
-    pub fn raw(&self) -> RawCapturer {
+    pub fn raw(&'_ self) -> RawCapturer<'_> {
         RawCapturer { capturer: self }
     }
 }

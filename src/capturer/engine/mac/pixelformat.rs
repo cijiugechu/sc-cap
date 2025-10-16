@@ -135,7 +135,7 @@ pub unsafe fn create_bgra_frame(
 
     for i in 0..height {
         let base = i * stride;
-        data.extend_from_slice(&bytes[base as usize..(base + 4 * width) as usize]);
+        data.extend_from_slice(&bytes[base..base + 4 * width]);
     }
 
     Some(BGRAFrame {

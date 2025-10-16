@@ -1,4 +1,4 @@
-use std::{alloc::System, time::SystemTime};
+use std::time::SystemTime;
 
 pub struct AudioFrame {
     format: AudioFormat,
@@ -20,7 +20,7 @@ impl AudioFrame {
         rate: u32,
         timestamp: SystemTime,
     ) -> Self {
-        assert!(data.len() >= sample_count * format.sample_size() as usize * channels as usize);
+        assert!(data.len() >= sample_count * format.sample_size() * channels as usize);
 
         Self {
             format,
@@ -71,9 +71,9 @@ impl AudioFrame {
 
     pub fn plane_data(&self, plane: usize) -> &[u8] {
         if !self.is_planar {
-            return &self.data;
+            &self.data
         } else {
-            let plane_size = self.sample_count * self.format.sample_size() as usize;
+            let plane_size = self.sample_count * self.format.sample_size();
             let base = plane * plane_size;
             &self.data[base..base + plane_size]
         }

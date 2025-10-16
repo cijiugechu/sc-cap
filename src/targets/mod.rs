@@ -1,7 +1,4 @@
 #[cfg(target_os = "macos")]
-use futures::executor::block_on;
-
-#[cfg(target_os = "macos")]
 mod mac;
 
 #[cfg(target_os = "windows")]

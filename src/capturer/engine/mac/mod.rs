@@ -41,8 +41,8 @@ impl sc::stream::DelegateImpl for ErrorHandler {
     extern "C" fn impl_stream_did_stop_with_err(
         &mut self,
         _cmd: Option<&objc::Sel>,
-        stream: &sc::Stream,
-        error: &ns::Error,
+        _stream: &sc::Stream,
+        _error: &ns::Error,
     ) {
         eprintln!("Screen capture error occurred.");
         self.inner_mut()
@@ -83,11 +83,13 @@ pub(crate) enum CreateCapturerError {
     DisplayNotFound(String),
 }
 
+type CapturerInit = (arc::R<Capturer>, arc::R<ErrorHandler>, arc::R<sc::Stream>);
+
 pub(crate) fn create_capturer(
     options: &Options,
     tx: mpsc::Sender<ChannelItem>,
     error_flag: Arc<AtomicBool>,
-) -> Result<(arc::R<Capturer>, arc::R<ErrorHandler>, arc::R<sc::Stream>), CreateCapturerError> {
+) -> Result<CapturerInit, CreateCapturerError> {
     // If no target is specified, capture the main display
     let target = options
         .target
@@ -119,10 +121,9 @@ pub(crate) fn create_capturer(
                 .ok_or_else(|| CreateCapturerError::DisplayNotFound(display.title))?;
 
             match &options.excluded_targets {
-                None => sc::ContentFilter::with_display_excluding_windows(
-                    &sc_display,
-                    &ns::Array::new(),
-                ),
+                None => {
+                    sc::ContentFilter::with_display_excluding_windows(sc_display, &ns::Array::new())
+                }
                 Some(excluded_targets) => {
                     let windows = shareable_content.windows();
                     let excluded_windows = windows
@@ -140,7 +141,7 @@ pub(crate) fn create_capturer(
                         .collect::<Vec<_>>();
 
                     sc::ContentFilter::with_display_excluding_windows(
-                        &sc_display,
+                        sc_display,
                         &ns::Array::from_slice(&excluded_windows),
                     )
                 }
@@ -368,7 +369,7 @@ pub fn process_sample_buffer(
                 });
             }
 
-            return Some(Frame::Audio(AudioFrame::new(
+            Some(Frame::Audio(AudioFrame::new(
                 AudioFormat::F32,
                 2,
                 false,
@@ -376,7 +377,7 @@ pub fn process_sample_buffer(
                 sample.num_samples() as usize,
                 48_000,
                 frame_system_time,
-            )));
+            )))
         }
         _ => None,
     }
