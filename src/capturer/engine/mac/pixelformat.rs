@@ -3,8 +3,8 @@ use std::time::SystemTime;
 use cidre::{cm, cv};
 
 use crate::frame::{
-    convert_bgra_to_rgb, get_cropped_data, remove_alpha_channel, BGRAFrame, BGRFrame, RGBFrame,
-    YUVFrame,
+    BGRAFrame, BGRFrame, RGBFrame, YUVFrame, convert_bgra_to_rgb, get_cropped_data,
+    remove_alpha_channel,
 };
 
 pub unsafe fn create_yuv_frame(

@@ -1,12 +1,12 @@
 use crate::{
     capturer::{Area, Options, Point, Resolution, Size},
     frame::{AudioFormat, AudioFrame, BGRAFrame, Frame, FrameType, VideoFrame},
-    targets::{self, get_scale_factor, Target},
+    targets::{self, Target, get_scale_factor},
 };
 use ::windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
 use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
     StreamInstant,
+    traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{cmp, time::Duration};

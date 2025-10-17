@@ -38,11 +38,7 @@ impl AudioFrame {
     }
 
     pub fn planes(&self) -> u16 {
-        if self.is_planar {
-            self.channels
-        } else {
-            1
-        }
+        if self.is_planar { self.channels } else { 1 }
     }
 
     pub fn channels(&self) -> u16 {

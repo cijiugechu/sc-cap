@@ -1,5 +1,5 @@
 use cidre::cg;
-use core_graphics_helmer_fork::display::{CGDisplay, CGDisplayMode};
+use core_graphics::display::{CGDisplay, CGDisplayMode};
 
 pub trait DirectDisplayIdExt {
     fn display_mode(&self) -> Option<CGDisplayMode>;

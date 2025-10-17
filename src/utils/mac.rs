@@ -1,4 +1,4 @@
-use core_graphics_helmer_fork::access::ScreenCaptureAccess;
+use core_graphics::access::ScreenCaptureAccess;
 use sysinfo::System;
 
 pub fn has_permission() -> bool {
