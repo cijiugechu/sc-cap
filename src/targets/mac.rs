@@ -3,7 +3,7 @@
 use cidre::{cg, sc};
 use futures::executor::block_on;
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSApp, NSScreen};
+use objc2_app_kit::NSApp;
 use objc2_core_graphics::CGDisplayMode;
 use objc2_foundation::{NSInteger, NSRect};
 
@@ -17,16 +17,9 @@ fn main_thread_marker() -> MainThreadMarker {
 }
 
 fn get_display_name(display_id: cg::DirectDisplayId) -> String {
-    let mtm = main_thread_marker();
-    let screens = NSScreen::screens(mtm);
-
-    for screen in screens.iter() {
-        if screen.CGDirectDisplayID() == display_id.0 {
-            return screen.localizedName().to_string();
-        }
-    }
-
-    format!("Unknown Display {}", display_id.0)
+    // On newer macOS versions the -[NSScreen CGDirectDisplayID] selector is not available.
+    // Avoid calling into AppKit for this mapping and use a stable fallback name instead.
+    format!("Display {}", display_id.0)
 }
 
 pub fn get_all_targets() -> Vec<Target> {
