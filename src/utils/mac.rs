@@ -1,12 +1,12 @@
-use core_graphics::access::ScreenCaptureAccess;
+use objc2_core_graphics::{CGPreflightScreenCaptureAccess, CGRequestScreenCaptureAccess};
 use sysinfo::System;
 
 pub fn has_permission() -> bool {
-    ScreenCaptureAccess.preflight()
+    CGPreflightScreenCaptureAccess()
 }
 
 pub fn request_permission() -> bool {
-    ScreenCaptureAccess.request()
+    CGRequestScreenCaptureAccess()
 }
 
 pub fn is_supported() -> bool {

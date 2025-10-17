@@ -1,13 +1,14 @@
 use cidre::cg;
-use core_graphics::display::{CGDisplay, CGDisplayMode};
+use objc2_core_foundation::CFRetained;
+use objc2_core_graphics::{CGDisplayCopyDisplayMode, CGDisplayMode};
 
 pub trait DirectDisplayIdExt {
-    fn display_mode(&self) -> Option<CGDisplayMode>;
+    fn display_mode(&self) -> Option<CFRetained<CGDisplayMode>>;
 }
 
 impl DirectDisplayIdExt for cg::DirectDisplayId {
     #[inline]
-    fn display_mode(&self) -> Option<CGDisplayMode> {
-        CGDisplay::new(self.0).display_mode()
+    fn display_mode(&self) -> Option<CFRetained<CGDisplayMode>> {
+        CGDisplayCopyDisplayMode(self.0)
     }
 }

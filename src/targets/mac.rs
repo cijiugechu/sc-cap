@@ -6,6 +6,7 @@ use cocoa::base::{id, nil};
 use cocoa::foundation::{NSRect, NSString, NSUInteger};
 use futures::executor::block_on;
 use objc::{msg_send, sel, sel_impl};
+use objc2_core_graphics::CGDisplayMode;
 
 use crate::engine::mac::ext::DirectDisplayIdExt;
 
@@ -97,7 +98,9 @@ pub fn get_scale_factor(target: &Target) -> f64 {
         },
         Target::Display(display) => {
             let mode = display.raw_handle.display_mode().unwrap();
-            (mode.pixel_width() / mode.width()) as f64
+            let pixel_width = CGDisplayMode::pixel_width(Some(&mode)) as f64;
+            let width = CGDisplayMode::width(Some(&mode)) as f64;
+            pixel_width / width
         }
     }
 }
@@ -113,7 +116,9 @@ pub fn get_target_dimensions(target: &Target) -> (u64, u64) {
         },
         Target::Display(display) => {
             let mode = display.raw_handle.display_mode().unwrap();
-            (mode.width(), mode.height())
+            let width = CGDisplayMode::width(Some(&mode)) as u64;
+            let height = CGDisplayMode::height(Some(&mode)) as u64;
+            (width, height)
         }
     }
 }
