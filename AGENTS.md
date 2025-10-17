@@ -2,15 +2,11 @@
 
 `sc-cap` is a cross-platform Rust crate for high-quality screen capture. The library layers a portable API over OS-specific backends for macOS (ScreenCaptureKit), Windows (Windows.Graphics.Capture via `windows-capture`), and Linux (Pipewire-based prototype). The public API is exported through `src/lib.rs`, while `src/main.rs` provides a minimal example binary.
 
+## Coding Conventions
+
+- Run `cargo check`, `cargo test` and `cargo clippy` automatically after making code changes.
+
 ## Module Map
-
-- `lib.rs`
-  - Re-exports the main modules: [`capturer`](#capturer), [`frame`](#frame-module), [`targets`](#targets-module), and [`utils`](#utility-helpers).
-  - Exposes helper functions (`get_all_targets`, `get_main_display`, `has_permission`, `is_supported`, `request_permission`) for callers.
-  - On macOS, re-exports the `engine::mac` module for advanced integration.
-
-- `main.rs`
-  - Demonstrates end-to-end usage: environment checks, recorder construction, frame iteration, and shutdown.
 
 - `capturer.rs`
   - Defines [`Options`](#capture-options) for configuring capture sessions.
