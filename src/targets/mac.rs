@@ -1,40 +1,32 @@
 #![allow(unexpected_cfgs)]
 
 use cidre::{cg, sc};
-use cocoa::appkit::{NSApp, NSScreen};
-use cocoa::base::{id, nil};
-use cocoa::foundation::{NSRect, NSString, NSUInteger};
 use futures::executor::block_on;
-use objc::{msg_send, sel, sel_impl};
+use objc2::MainThreadMarker;
+use objc2_app_kit::{NSApp, NSScreen};
 use objc2_core_graphics::CGDisplayMode;
+use objc2_foundation::{NSInteger, NSRect};
 
 use crate::engine::mac::ext::DirectDisplayIdExt;
 
 use super::{Display, Target};
 
+#[inline]
+fn main_thread_marker() -> MainThreadMarker {
+    MainThreadMarker::new().expect("macOS target APIs must be called on the main thread")
+}
+
 fn get_display_name(display_id: cg::DirectDisplayId) -> String {
-    unsafe {
-        // Get all screens
-        let screens: id = NSScreen::screens(nil);
-        let count: u64 = msg_send![screens, count];
+    let mtm = main_thread_marker();
+    let screens = NSScreen::screens(mtm);
 
-        for i in 0..count {
-            let screen: id = msg_send![screens, objectAtIndex: i];
-            let device_description: id = msg_send![screen, deviceDescription];
-            let display_id_number: id = msg_send![device_description, objectForKey: NSString::alloc(nil).init_str("NSScreenNumber")];
-            let display_id_number: u32 = msg_send![display_id_number, unsignedIntValue];
-
-            if display_id_number == display_id.0 {
-                let localized_name: id = msg_send![screen, localizedName];
-                let name: *const i8 = msg_send![localized_name, UTF8String];
-                return std::ffi::CStr::from_ptr(name)
-                    .to_string_lossy()
-                    .into_owned();
-            }
+    for screen in screens.iter() {
+        if screen.CGDirectDisplayID() == display_id.0 {
+            return screen.localizedName().to_string();
         }
-
-        format!("Unknown Display {}", display_id.0)
     }
+
+    format!("Unknown Display {}", display_id.0)
 }
 
 pub fn get_all_targets() -> Vec<Target> {
@@ -89,13 +81,15 @@ pub fn get_main_display() -> Display {
 
 pub fn get_scale_factor(target: &Target) -> f64 {
     match target {
-        Target::Window(window) => unsafe {
-            let cg_win_id = window.raw_handle;
-            let ns_app: id = NSApp();
-            let ns_window: id = msg_send![ns_app, windowWithWindowNumber: cg_win_id as NSUInteger];
-            let scale_factor: f64 = msg_send![ns_window, backingScaleFactor];
-            scale_factor
-        },
+        Target::Window(window) => {
+            let mtm = main_thread_marker();
+            let app = NSApp(mtm);
+            let window_id = window.raw_handle as NSInteger;
+
+            app.windowWithWindowNumber(window_id)
+                .map(|ns_window| ns_window.backingScaleFactor())
+                .unwrap_or(1.0)
+        }
         Target::Display(display) => {
             let mode = display.raw_handle.display_mode().unwrap();
             let pixel_width = CGDisplayMode::pixel_width(Some(&mode)) as f64;
@@ -107,13 +101,18 @@ pub fn get_scale_factor(target: &Target) -> f64 {
 
 pub fn get_target_dimensions(target: &Target) -> (u64, u64) {
     match target {
-        Target::Window(window) => unsafe {
-            let cg_win_id = window.raw_handle;
-            let ns_app: id = NSApp();
-            let ns_window: id = msg_send![ns_app, windowWithWindowNumber: cg_win_id as NSUInteger];
-            let frame: NSRect = msg_send![ns_window, frame];
-            (frame.size.width as u64, frame.size.height as u64)
-        },
+        Target::Window(window) => {
+            let mtm = main_thread_marker();
+            let app = NSApp(mtm);
+            let window_id = window.raw_handle as NSInteger;
+
+            if let Some(ns_window) = app.windowWithWindowNumber(window_id) {
+                let frame: NSRect = ns_window.frame();
+                (frame.size.width as u64, frame.size.height as u64)
+            } else {
+                (0, 0)
+            }
+        }
         Target::Display(display) => {
             let mode = display.raw_handle.display_mode().unwrap();
             let width = CGDisplayMode::width(Some(&mode)) as u64;
