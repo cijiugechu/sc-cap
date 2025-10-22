@@ -12,7 +12,7 @@ use cidre::{arc, cm, mach, sc};
 use core_foundation::base::{CFRelease, kCFAllocatorDefault};
 use metal::{foreign_types::ForeignType, Device, MTLPixelFormat, MTLTextureType, MTLTextureUsage, Texture};
 use wgpu::TextureDimension;
-use wgpu_hal::{CopyExtent, api::Metal as HalMetal};
+use wgpu::hal::{CopyExtent, api::Metal as HalMetal};
 
 use super::{ChannelItem, build_video_frame};
 use crate::{
@@ -207,7 +207,7 @@ impl MacEngine {
         let sample_count = std::cmp::max(1, metal_texture.sample_count() as u32);
 
         let hal_texture = unsafe {
-            wgpu_hal::metal::Device::texture_from_raw(
+            wgpu::hal::metal::Device::texture_from_raw(
                 metal_texture,
                 format,
                 texture_type,
