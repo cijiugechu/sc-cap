@@ -20,6 +20,8 @@ categories = ["graphics", "multimedia", "multimedia::video"]
 futures = "0.3"
 sysinfo = "0.37"
 thiserror = "2"
+wgpu = "27"
+wgpu-hal = "27"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-capture = "1.5.0"
@@ -45,7 +47,10 @@ cidre = { version = "0.10.1", default-features = false, features = [
 	"sc",
 	"dispatch",
 	"macos_13_0",
+	"mtl",
 ] }
+core-foundation = "0.9"
+metal = "0.32"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pipewire = "0.8.0"

@@ -2,6 +2,7 @@
 
 pub mod capturer;
 pub mod frame;
+pub mod gpu_capturer;
 mod targets;
 mod utils;
 
