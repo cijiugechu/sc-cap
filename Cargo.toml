@@ -23,6 +23,9 @@ thiserror = "2"
 wgpu = "27"
 wgpu-hal = "27"
 
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-capture = "1.5.0"
 windows = { version = "0.58", features = [
