@@ -1,5 +1,5 @@
 use std::{
-    ffi::c_void,
+    ptr::NonNull,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -9,8 +9,26 @@ use std::{
 };
 
 use cidre::{arc, cm, mach, sc};
-use core_foundation::base::{CFRelease, kCFAllocatorDefault};
-use metal::{foreign_types::ForeignType, Device, MTLPixelFormat, MTLTextureType, MTLTextureUsage, Texture};
+use core_foundation::base::CFRelease;
+use metal::{foreign_types::ForeignType, Device, MTLPixelFormat, MTLTexture, MTLTextureType, MTLTextureUsage, Texture};
+use objc2::{
+    rc::Retained,
+    runtime::ProtocolObject,
+};
+use objc2_core_foundation::kCFAllocatorDefault;
+use objc2_core_video::{
+    CVImageBuffer,
+    CVMetalTexture,
+    CVMetalTextureCache,
+    CVMetalTextureGetTexture,
+    CVReturn,
+    kCVReturnSuccess,
+};
+use objc2_foundation::NSUInteger;
+use objc2_metal::{
+    MTLDevice as ObjcMTLDevice,
+    MTLPixelFormat as ObjcMTLPixelFormat,
+};
 use wgpu::TextureDimension;
 use wgpu::hal::{CopyExtent, api::Metal as HalMetal};
 
@@ -168,8 +186,7 @@ impl MacEngine {
             .image_buf()
             .ok_or(MacProcessingError::MissingImageBuffer)?;
 
-        let raw_image =
-            unsafe { image_buffer.as_ref().as_type_ref().as_type_ptr() } as CVImageBufferRef;
+        let raw_image = unsafe { image_buffer.as_ref().as_type_ref().as_type_ptr() } as *mut CVImageBuffer;
 
         let size = image_buffer.encoded_size();
         let width = size.width.round() as usize;
@@ -311,7 +328,7 @@ fn map_texture_usage(usage: MTLTextureUsage) -> wgpu::TextureUsages {
 }
 
 struct MetalTextureCache {
-    raw: CVMetalTextureCacheRef,
+    raw: *mut CVMetalTextureCache,
 }
 
 unsafe impl Send for MetalTextureCache {}
@@ -319,18 +336,22 @@ unsafe impl Sync for MetalTextureCache {}
 
 impl MetalTextureCache {
     fn new(device: Device) -> Result<Self, CVReturn> {
-        let mut cache = std::ptr::null_mut();
+        let mut cache: *mut CVMetalTextureCache = std::ptr::null_mut();
+        let protocol_device: &ProtocolObject<dyn ObjcMTLDevice> = unsafe {
+            &*(device.as_ptr() as *mut ProtocolObject<dyn ObjcMTLDevice>)
+        };
+
         let status = unsafe {
-            CVMetalTextureCacheCreate(
+            CVMetalTextureCache::create(
                 kCFAllocatorDefault,
-                std::ptr::null(),
-                device.as_ptr() as *mut objc::runtime::Object,
-                std::ptr::null(),
-                &mut cache,
+                None,
+                protocol_device,
+                None,
+                NonNull::from(&mut cache),
             )
         };
 
-        if status == K_CV_RETURN_SUCCESS {
+        if status == kCVReturnSuccess {
             Ok(Self { raw: cache })
         } else {
             Err(status)
@@ -339,27 +360,28 @@ impl MetalTextureCache {
 
     fn create_texture(
         &self,
-        image: CVImageBufferRef,
+        image: *mut CVImageBuffer,
         pixel_format: MTLPixelFormat,
         width: usize,
         height: usize,
     ) -> Result<MetalTexture, CVReturn> {
-        let mut texture = std::ptr::null_mut();
+        let mut texture: *mut CVMetalTexture = std::ptr::null_mut();
+        let objc_pixel_format = ObjcMTLPixelFormat(pixel_format as NSUInteger);
         let status = unsafe {
-            CVMetalTextureCacheCreateTextureFromImage(
+            CVMetalTextureCache::create_texture_from_image(
                 kCFAllocatorDefault,
-                self.raw,
-                image,
-                std::ptr::null(),
-                pixel_format as u64,
+                &*self.raw,
+                &*image,
+                None,
+                objc_pixel_format,
                 width,
                 height,
                 0,
-                &mut texture,
+                NonNull::from(&mut texture),
             )
         };
 
-        if status == K_CV_RETURN_SUCCESS {
+        if status == kCVReturnSuccess {
             Ok(MetalTexture { raw: texture })
         } else {
             Err(status)
@@ -370,14 +392,14 @@ impl MetalTextureCache {
 impl Drop for MetalTextureCache {
     fn drop(&mut self) {
         unsafe {
-            CVMetalTextureCacheFlush(self.raw, 0);
-            CFRelease(self.raw as _);
+            (&*self.raw).flush(0);
+            CFRelease(self.raw.cast());
         }
     }
 }
 
 struct MetalTexture {
-    raw: CVMetalTextureRef,
+    raw: *mut CVMetalTexture,
 }
 
 impl MetalTexture {
@@ -385,59 +407,23 @@ impl MetalTexture {
         let raw = self.raw;
         std::mem::forget(self);
 
-        let texture_ptr = unsafe { CVMetalTextureGetTexture(raw) };
-        if texture_ptr.is_null() {
-            unsafe { CFRelease(raw as _) };
-            return Err(MacProcessingError::NullMetalTexture);
-        }
+        let texture_ref = unsafe { &*raw };
+        let retained = CVMetalTextureGetTexture(texture_ref)
+            .ok_or(MacProcessingError::NullMetalTexture)?;
+        let texture_ptr = Retained::into_raw(retained).cast::<MTLTexture>();
 
         unsafe {
-            objc::runtime::objc_retain(texture_ptr);
-            CFRelease(raw as _);
+            CFRelease(raw.cast());
         }
 
-        Ok(unsafe { Texture::from_ptr(texture_ptr.cast()) })
+        Ok(unsafe { Texture::from_ptr(texture_ptr) })
     }
 }
 
 impl Drop for MetalTexture {
     fn drop(&mut self) {
         unsafe {
-            CFRelease(self.raw as _);
+            CFRelease(self.raw.cast());
         }
     }
-}
-
-type CVMetalTextureCacheRef = *mut c_void;
-type CVMetalTextureRef = *mut c_void;
-type CVImageBufferRef = *mut c_void;
-type CVReturn = i32;
-
-const K_CV_RETURN_SUCCESS: CVReturn = 0;
-
-#[link(name = "CoreVideo", kind = "framework")]
-unsafe extern "C" {
-    fn CVMetalTextureCacheCreate(
-        allocator: *const c_void,
-        cache_attrs: *const c_void,
-        metal_device: *mut objc::runtime::Object,
-        texture_attrs: *const c_void,
-        cache_out: *mut CVMetalTextureCacheRef,
-    ) -> CVReturn;
-
-    fn CVMetalTextureCacheCreateTextureFromImage(
-        allocator: *const c_void,
-        texture_cache: CVMetalTextureCacheRef,
-        source_image: CVImageBufferRef,
-        texture_attrs: *const c_void,
-        pixel_format: u64,
-        width: usize,
-        height: usize,
-        plane_index: usize,
-        texture_out: *mut CVMetalTextureRef,
-    ) -> CVReturn;
-
-    fn CVMetalTextureCacheFlush(texture_cache: CVMetalTextureCacheRef, options: u64);
-
-    fn CVMetalTextureGetTexture(image: CVMetalTextureRef) -> *mut objc::runtime::Object;
 }
