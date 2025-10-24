@@ -122,6 +122,7 @@ impl GPUCapturer {
     pub fn build(
         options: Options,
         device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
     ) -> Result<GPUCapturer, GPUCapturerBuildError> {
         if !is_supported() {
             return Err(GPUCapturerBuildError::NotSupported);
@@ -136,7 +137,7 @@ impl GPUCapturer {
         }
 
         let (tx, rx) = mpsc::channel();
-        let engine = match Engine::new(&options, device, tx) {
+        let engine = match Engine::new(&options, device, queue, tx) {
             Ok(engine) => engine,
             Err(EngineError::Unsupported) => {
                 return Err(GPUCapturerBuildError::Engine(

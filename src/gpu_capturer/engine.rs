@@ -7,6 +7,9 @@ use super::{GpuFrame, GpuVideoFrame};
 #[cfg(target_os = "macos")]
 mod mac;
 
+#[cfg(target_os = "linux")]
+mod linux;
+
 #[cfg(target_os = "macos")]
 pub type ChannelItem = (
     cidre::arc::R<cidre::cm::SampleBuf>,
@@ -20,6 +23,9 @@ pub enum EngineError {
     #[cfg(target_os = "macos")]
     #[error(transparent)]
     Mac(#[from] mac::MacEngineError),
+    #[cfg(target_os = "linux")]
+    #[error(transparent)]
+    Linux(#[from] linux::LinuxEngineError),
     #[error("GPU capture is not implemented for this platform")]
     Unsupported,
 }
@@ -29,6 +35,9 @@ pub enum ProcessingError {
     #[cfg(target_os = "macos")]
     #[error(transparent)]
     Mac(#[from] mac::MacProcessingError),
+    #[cfg(target_os = "linux")]
+    #[error(transparent)]
+    Linux(#[from] linux::LinuxProcessingError),
     #[error("GPU capture is not implemented for this platform")]
     Unsupported,
 }
@@ -37,12 +46,15 @@ pub struct Engine {
     options: Options,
     #[cfg(target_os = "macos")]
     mac: mac::MacEngine,
+    #[cfg(target_os = "linux")]
+    linux: linux::LinuxEngine,
 }
 
 impl Engine {
     pub fn new(
         options: &Options,
         device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
         tx: mpsc::Sender<ChannelItem>,
     ) -> Result<Self, EngineError> {
         #[cfg(target_os = "macos")]
@@ -56,8 +68,16 @@ impl Engine {
 
         #[cfg(not(target_os = "macos"))]
         {
-            let _ = (options, device, tx);
-            Err(EngineError::Unsupported)
+            #[cfg(target_os = "linux")]
+            {
+                let linux = linux::LinuxEngine::new(options, device, queue, tx)?;
+                Ok(Self { options: options.clone(), linux })
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (options, device, queue, tx);
+                Err(EngineError::Unsupported)
+            }
         }
     }
 
@@ -66,12 +86,20 @@ impl Engine {
         {
             self.mac.start();
         }
+        #[cfg(target_os = "linux")]
+        {
+            self.linux.start();
+        }
     }
 
     pub fn stop(&mut self) {
         #[cfg(target_os = "macos")]
         {
             self.mac.stop();
+        }
+        #[cfg(target_os = "linux")]
+        {
+            self.linux.stop();
         }
     }
 
@@ -81,7 +109,12 @@ impl Engine {
             self.mac.get_output_frame_size(&self.options)
         }
 
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(all(not(target_os = "macos"), target_os = "linux"))]
+        {
+            self.linux.get_output_frame_size()
+        }
+
+        #[cfg(all(not(target_os = "macos"), not(target_os = "linux")))]
         {
             [0, 0]
         }
@@ -99,7 +132,12 @@ impl Engine {
                 .map_err(ProcessingError::from)
         }
 
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(all(not(target_os = "macos"), target_os = "linux"))]
+        {
+            self.linux.process_channel_item(data).map_err(ProcessingError::from)
+        }
+
+        #[cfg(all(not(target_os = "macos"), not(target_os = "linux")))]
         {
             let _ = data;
             Err(ProcessingError::Unsupported)

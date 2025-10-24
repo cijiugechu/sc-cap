@@ -1,7 +1,7 @@
 //! Capture the main display using [`GPUCapturer`] and save each frame as a PNG.
 //! Run with `cargo run --example gpu_capture_save`.
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use futures::executor::block_on;
     use sc_cap::{
@@ -28,6 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (device, queue) = block_on(initialize_wgpu_device())?;
     let device = Arc::new(device);
+    let queue = Arc::new(queue);
 
     let mut capturer = GPUCapturer::build(
         Options {
@@ -36,6 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..Default::default()
         },
         device.clone(),
+        queue.clone(),
     )?;
 
     capturer.start_capture();
@@ -64,7 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 async fn initialize_wgpu_device(
 ) -> Result<(wgpu::Device, wgpu::Queue), Box<dyn std::error::Error>> {
     use wgpu::{
@@ -99,7 +101,7 @@ async fn initialize_wgpu_device(
     Ok((device, queue))
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn save_frame_to_png(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -191,7 +193,7 @@ fn save_frame_to_png(
     Ok(())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn main() {
     eprintln!("GPU capture example is only available on macOS with ScreenCaptureKit.");
 }
