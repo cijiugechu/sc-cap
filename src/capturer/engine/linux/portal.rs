@@ -219,7 +219,8 @@ macro_rules! match_response {
 
 pub struct ScreenCastPortal<'a> {
     proxy: Proxy<'a, &'a Connection>,
-    token: String,
+    request_token: String,
+    session_token: String,
     cursor_mode: u32,
 }
 
@@ -228,14 +229,16 @@ impl<'a> ScreenCastPortal<'a> {
         let proxy = connection.with_proxy(
             "org.freedesktop.portal.Desktop",
             "/org/freedesktop/portal/desktop",
-            Duration::from_secs(4),
+            Duration::from_secs(30),
         );
 
-        let token = format!("sc-cap_{}", rand::random::<u16>());
+        let request_token = format!("sc_cap_request_{}", rand::random::<u32>());
+        let session_token = format!("sc_cap_session_{}", rand::random::<u32>());
 
         Self {
             proxy,
-            token,
+            request_token,
+            session_token,
             cursor_mode: 1,
         }
     }
@@ -244,11 +247,11 @@ impl<'a> ScreenCastPortal<'a> {
         let mut map = arg::PropMap::new();
         map.insert(
             String::from("handle_token"),
-            Variant(Box::new(self.token.clone())),
+            Variant(Box::new(self.request_token.clone())),
         );
         map.insert(
             String::from("session_handle_token"),
-            Variant(Box::new(self.token.clone())),
+            Variant(Box::new(self.session_token.clone())),
         );
         map
     }
@@ -257,12 +260,12 @@ impl<'a> ScreenCastPortal<'a> {
         let mut map = arg::PropMap::new();
         map.insert(
             String::from("handle_token"),
-            Variant(Box::new(self.token.clone())),
+            Variant(Box::new(self.request_token.clone())),
         );
-        map.insert(
-            String::from("types"),
-            Variant(Box::new(self.proxy.available_source_types()?)),
-        );
+        // Attempt to query supported source types; if portal/backend is flaky, fall back to both
+        // monitors(1) | windows(2) = 3.
+        let types = self.proxy.available_source_types().unwrap_or(3);
+        map.insert(String::from("types"), Variant(Box::new(types)));
         map.insert(String::from("multiple"), Variant(Box::new(false)));
         map.insert(
             String::from("cursor_mode"),
@@ -286,7 +289,7 @@ impl<'a> ScreenCastPortal<'a> {
         rule.msg_type = Some(dbus::MessageType::Signal);
         rule.sender = Some(BusName::from("org.freedesktop.portal.Desktop"));
         rule.interface = Some(Interface::from("org.freedesktop.portal.Request"));
-        connection.add_match(
+        let _match_guard = connection.add_match(
             rule,
             move |res: OrgFreedesktopPortalRequestResponse, _chuh, _msg| {
                 let mut response = response.lock().expect("Failed to lock response mutex");
@@ -307,8 +310,13 @@ impl<'a> ScreenCastPortal<'a> {
         Ok(())
     }
 
-    fn create_session(&self) -> Result<dbus::Path, LinCapError> {
-        let request_handle = self.proxy.create_session(self.create_session_args())?;
+    fn create_session(&self) -> Result<dbus::Path<'_>, LinCapError> {
+        let request_handle = self
+            .proxy
+            .create_session(self.create_session_args())
+            .map_err(|e| LinCapError::new(format!(
+                "CreateSession failed via xdg-desktop-portal: {e}"
+            )))?;
 
         let response = Arc::new(Mutex::new(None));
         let response_clone = Arc::clone(&response);
@@ -349,7 +357,10 @@ impl<'a> ScreenCastPortal<'a> {
     fn select_sources(&self, session_handle: dbus::Path) -> Result<(), LinCapError> {
         let request_handle = self
             .proxy
-            .select_sources(session_handle, self.select_sources_args()?)?;
+            .select_sources(session_handle, self.select_sources_args()?)
+            .map_err(|e| LinCapError::new(format!(
+                "SelectSources failed via xdg-desktop-portal: {e}"
+            )))?;
 
         let response = Arc::new(Mutex::new(None));
         let response_clone = Arc::clone(&response);
@@ -370,7 +381,23 @@ impl<'a> ScreenCastPortal<'a> {
     }
 
     fn start(&self, session_handle: dbus::Path) -> Result<Stream, LinCapError> {
-        let request_handle = self.proxy.start(session_handle, "", PropMap::new())?;
+        let request_handle = self
+            .proxy
+            .start(
+                session_handle,
+                "",
+                {
+                    let mut opts = PropMap::new();
+                    opts.insert(
+                        String::from("handle_token"),
+                        Variant(Box::new(self.request_token.clone())),
+                    );
+                    opts
+                },
+            )
+            .map_err(|e| LinCapError::new(format!(
+                "Start failed via xdg-desktop-portal: {e}"
+            )))?;
 
         let response = Arc::new(Mutex::new(None));
         let response_clone = Arc::clone(&response);
@@ -386,7 +413,9 @@ impl<'a> ScreenCastPortal<'a> {
             match_response!(res.response);
             match res.results.get("streams") {
                 Some(s) => match Stream::from_dbus(s) {
-                    Some(s) => return Ok(s),
+                    Some(s) => {
+                        return Ok(s);
+                    }
                     None => {
                         return Err(LinCapError::new(String::from(
                             "Failed to extract stream properties",
@@ -400,9 +429,21 @@ impl<'a> ScreenCastPortal<'a> {
         Err(LinCapError::new(String::from("Did not get response")))
     }
 
+    pub fn open_remote(&self, session_handle: dbus::Path) -> Result<arg::OwnedFd, LinCapError> {
+        let fd = self
+            .proxy
+            .open_pipe_wire_remote(session_handle, PropMap::new())
+            .map_err(|e| LinCapError::new(format!(
+                "OpenPipeWireRemote failed via xdg-desktop-portal: {e}"
+            )))?;
+        Ok(fd)
+    }
+
     pub fn create_stream(&self) -> Result<Stream, LinCapError> {
         let session_handle = self.create_session()?;
+        // Follow the portal contract: select sources before requesting the PipeWire remote fd.
         self.select_sources(session_handle.clone())?;
+        let _fd = self.open_remote(session_handle.clone())?;
         self.start(session_handle)
     }
 

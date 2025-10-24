@@ -31,10 +31,11 @@ use pw::{
 
 use crate::{
     capturer::Options,
-    frame::{BGRxFrame, Frame, RGBFrame, RGBxFrame, XBGRFrame, VideoFrame},
+    frame::{BGRxFrame, Frame, RGBFrame, RGBxFrame, VideoFrame, XBGRFrame},
 };
 
-use self::{error::LinCapError, portal::ScreenCastPortal};
+pub(crate) use self::error::LinCapError;
+use self::portal::ScreenCastPortal;
 
 mod error;
 mod portal;
@@ -194,9 +195,9 @@ fn pipewire_capturer(
         properties! {
             *pw::keys::MEDIA_TYPE => "Video",
             *pw::keys::MEDIA_CATEGORY => "Capture",
-            *pw::keys::MEDIA_ROLE => "Screen",
-        },
-    )?;
+        *pw::keys::MEDIA_ROLE => "Screen",
+    },
+)?;
 
     let _listener = stream
         .add_local_listener_with_user_data(user_data.clone())
@@ -316,36 +317,39 @@ pub struct LinuxCapturer {
 }
 
 impl LinuxCapturer {
-    // TODO: Error handling
-    pub fn new(options: &Options, tx: mpsc::Sender<Frame>) -> Self {
-        let connection =
-            dbus::blocking::Connection::new_session().expect("Failed to create dbus connection");
-        let stream_id = ScreenCastPortal::new(&connection)
-            .show_cursor(options.show_cursor)
-            .expect("Unsupported cursor mode")
-            .create_stream()
-            .expect("Failed to get screencast stream")
-            .pw_node_id();
+    /// Fallible constructor that returns a LinuxCapturer or a LinCapError instead of panicking.
+    pub fn try_new(options: &Options, tx: mpsc::Sender<Frame>) -> Result<Self, LinCapError> {
+        let connection = dbus::blocking::Connection::new_session()?;
+        let portal = ScreenCastPortal::new(&connection);
+        let portal = portal.show_cursor(options.show_cursor)?;
+        let stream = portal.create_stream()?;
+        let stream_id = stream.pw_node_id();
 
         // TODO: Fix this hack
         let options = options.clone();
         let (ready_sender, ready_recv) = sync_channel(1);
         let capturer_join_handle = std::thread::spawn(move || {
             let res = pipewire_capturer(options, tx, &ready_sender, stream_id);
-            if res.is_err() {
+            if let Err(ref err) = res {
                 ready_sender.send(false)?;
+            } else {
             }
             res
         });
 
-        if !ready_recv.recv().expect("Failed to receive") {
-            panic!("Failed to setup capturer");
+        if !ready_recv.recv().map_err(|_| LinCapError::new("Failed to receive".into()))? {
+            return Err(LinCapError::new("Failed to setup capturer".into()));
         }
 
-        Self {
+        Ok(Self {
             capturer_join_handle: Some(capturer_join_handle),
             _connection: connection,
-        }
+        })
+    }
+
+    // Backwards-compatible infallible constructor used by the CPU engine. Prefer `try_new`.
+    pub fn new(options: &Options, tx: mpsc::Sender<Frame>) -> Self {
+        Self::try_new(options, tx).expect("Failed to initialize Linux capturer")
     }
 
     pub fn start_capture(&self) {
@@ -366,4 +370,11 @@ impl LinuxCapturer {
 
 pub fn create_capturer(options: &Options, tx: mpsc::Sender<Frame>) -> LinuxCapturer {
     LinuxCapturer::new(options, tx)
+}
+
+pub fn try_create_capturer(
+    options: &Options,
+    tx: mpsc::Sender<Frame>,
+) -> Result<LinuxCapturer, LinCapError> {
+    LinuxCapturer::try_new(options, tx)
 }
