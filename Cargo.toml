@@ -46,7 +46,7 @@ objc2-core-graphics = "0.3"
 objc2-metal = "0.3"
 objc2-core-video = "0.3"
 objc2-foundation = "0.3"
-cidre = { version = "0.10.1", default-features = false, features = [
+cidre = { version = "0.11", default-features = false, features = [
 	"async",
 	"av",
 	"sc",

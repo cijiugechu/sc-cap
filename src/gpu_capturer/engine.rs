@@ -51,6 +51,7 @@ pub struct Engine {
 }
 
 impl Engine {
+    #[allow(unused_variables)]
     pub fn new(
         options: &Options,
         device: Arc<wgpu::Device>,
